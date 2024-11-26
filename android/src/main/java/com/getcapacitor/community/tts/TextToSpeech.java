@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.media.AudioManager;
+import android.media.AudioAttributes;
 import android.os.Build;
 import android.os.Bundle;
 import android.speech.tts.UtteranceProgressListener;
@@ -82,9 +84,10 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         float volume,
         int voice,
         String callbackId,
-        SpeakResultCallback resultCallback
+        SpeakResultCallback resultCallback,
+        boolean forceSpeaker
     ) {
-        speak(text, lang, rate, pitch, volume, voice, callbackId, resultCallback, android.speech.tts.TextToSpeech.QUEUE_FLUSH);
+        speak(text, lang, rate, pitch, volume, voice, callbackId, resultCallback, android.speech.tts.TextToSpeech.QUEUE_FLUSH, forceSpeaker);
     }
 
     public void speak(
@@ -96,11 +99,33 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         int voice,
         String callbackId,
         SpeakResultCallback resultCallback,
-        int queueStrategy
+        int queueStrategy,
+        boolean forceSpeaker
     ) {
         if (queueStrategy != android.speech.tts.TextToSpeech.QUEUE_ADD) {
             stop();
         }
+
+        // 设置音频路由
+        AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        if (forceSpeaker) {
+            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+            audioManager.setSpeakerphoneOn(true);
+            // 设置音频流类型为通话音频
+            tts.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build());
+        } else {
+            audioManager.setMode(AudioManager.MODE_NORMAL);
+            audioManager.setSpeakerphoneOn(false);
+            audioManager.setMode(AudioManager.MODE_CURRENT); // 确保模式切换生效
+            tts.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build());
+        }
+
         requests.put(callbackId, resultCallback);
 
         Locale locale = Locale.forLanguageTag(lang);
