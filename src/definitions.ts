@@ -105,6 +105,12 @@ export interface TTSOptions {
    * @default QueueStrategy.Flush
    */
   queueStrategy?: QueueStrategy;
+  /**
+   * Force audio output to speaker
+   * Only available for iOS
+   * @default false
+   */
+  forceSpeaker?: boolean;
 }
 
 /**

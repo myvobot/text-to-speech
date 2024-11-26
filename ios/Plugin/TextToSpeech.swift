@@ -13,16 +13,24 @@ enum QUEUE_STRATEGY: Int {
     override init() {
         super.init()
         self.synthesizer.delegate = self
-        // set session in background to avoid UI hangs.
-        queue.async {
-            do {
-                let avAudioSessionCategory: AVAudioSession.Category = .playback
-                try AVAudioSession.sharedInstance().setCategory(avAudioSessionCategory, mode: .default, options: .duckOthers)
-                try AVAudioSession.sharedInstance().setActive(true)
-            } catch {
-                print("Error setting up AVAudioSession: \(error)")
-            }
+    }
+
+    private func setupAudioSession(forceSpeaker: Bool) throws {
+        let avAudioSessionCategory: AVAudioSession.Category
+        var options: AVAudioSession.CategoryOptions = [.duckOthers]
+
+        if forceSpeaker {
+            avAudioSessionCategory = .playAndRecord
+            options.insert(.defaultToSpeaker)
+        } else {
+            avAudioSessionCategory = .playback
+            options.insert(.allowBluetooth)
+            options.insert(.allowBluetoothA2DP)
+            options.insert(.allowAirPlay)
         }
+
+        try AVAudioSession.sharedInstance().setCategory(avAudioSessionCategory, mode: .default, options: options)
+        try AVAudioSession.sharedInstance().setActive(true)
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
@@ -33,12 +41,18 @@ enum QUEUE_STRATEGY: Int {
         self.resolveCurrentCall()
     }
 
-    @objc public func speak(_ text: String, _ lang: String, _ rate: Float, _ pitch: Float, _ category: String, _ volume: Float, _ voice: Int, _ queueStrategy: Int, _ call: CAPPluginCall) throws {
+    @objc public func speak(_ text: String, _ lang: String, _ rate: Float, _ pitch: Float, _ category: String, _ volume: Float, _ voice: Int, _ queueStrategy: Int, _ forceSpeaker: Bool, _ call: CAPPluginCall) throws {
         if queueStrategy == QUEUE_STRATEGY.QUEUE_FLUSH.rawValue {
             self.synthesizer.stopSpeaking(at: .immediate)
         }
         self.calls.append(call)
 
+        // Set up audio session
+        do {
+            try setupAudioSession(forceSpeaker: forceSpeaker)
+        } catch {
+            print("Error setting up AVAudioSession: \(error)")
+        }
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: lang)
         utterance.rate = adjustRate(rate)

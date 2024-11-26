@@ -21,6 +21,7 @@ public class TextToSpeechPlugin: CAPPlugin {
         let voice = call.getInt("voice") ?? -1
         let category = call.getString("category") ?? "ambient"
         let queueStrategy = call.getInt("queueStrategy") ?? 0
+        let forceSpeaker = call.getBool("forceSpeaker") ?? false
 
         let isLanguageSupported = implementation.isLanguageSupported(lang)
         guard isLanguageSupported else {
@@ -29,7 +30,7 @@ public class TextToSpeechPlugin: CAPPlugin {
         }
 
         do {
-            try implementation.speak(text, lang, rate, pitch, category, volume, voice, queueStrategy, call)
+            try implementation.speak(text, lang, rate, pitch, category, volume, voice, queueStrategy, forceSpeaker, call)
         } catch {
             call.reject(error.localizedDescription)
         }
