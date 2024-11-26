@@ -38,6 +38,7 @@ public class TextToSpeechPlugin extends Plugin {
         float pitch = call.getFloat("pitch", 1.0f);
         float volume = call.getFloat("volume", 1.0f);
         int voice = call.getInt("voice", -1);
+        int audioChannel = call.getInt("audioChannel", 0); // 新增参数，默认为0（双声道）
         int queueStrategy = call.getInt("queueStrategy", 0);
         boolean forceSpeaker = call.getBoolean("forceSpeaker", false);
 
@@ -70,7 +71,7 @@ public class TextToSpeechPlugin extends Plugin {
         };
 
         try {
-            implementation.speak(text, lang, rate, pitch, volume, voice, call.getCallbackId(), resultCallback, queueStrategy, forceSpeaker);
+            implementation.speak(text, lang, rate, pitch, volume, voice, audioChannel, call.getCallbackId(), resultCallback, queueStrategy, forceSpeaker);
         } catch (Exception ex) {
             call.reject(ex.getLocalizedMessage());
         }

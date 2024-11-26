@@ -19,6 +19,11 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import android.media.MediaPlayer;
+import java.io.File;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.UUID;
+import android.media.AudioFocusRequest;
 
 public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListener {
 
@@ -29,6 +34,25 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
     private int initializationStatus;
     private JSObject[] supportedVoices = null;
     private Map<String, SpeakResultCallback> requests = new HashMap();
+    private MediaPlayer mediaPlayer;
+    private LinkedBlockingQueue<TTSRequest> ttsQueue = new LinkedBlockingQueue<>();
+    private boolean isPlaying = false;
+    
+    private class TTSRequest {
+        String text;
+        String utteranceId;
+        int audioChannel;
+        boolean forceSpeaker;
+        SpeakResultCallback callback;
+        
+        TTSRequest(String text, String utteranceId, int audioChannel, boolean forceSpeaker, SpeakResultCallback callback) {
+            this.text = text;
+            this.utteranceId = utteranceId;
+            this.audioChannel = audioChannel;
+            this.forceSpeaker = forceSpeaker;
+            this.callback = callback;
+        }
+    }
 
     TextToSpeech(Context context) {
         this.context = context;
@@ -83,20 +107,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         float pitch,
         float volume,
         int voice,
-        String callbackId,
-        SpeakResultCallback resultCallback,
-        boolean forceSpeaker
-    ) {
-        speak(text, lang, rate, pitch, volume, voice, callbackId, resultCallback, android.speech.tts.TextToSpeech.QUEUE_FLUSH, forceSpeaker);
-    }
-
-    public void speak(
-        String text,
-        String lang,
-        float rate,
-        float pitch,
-        float volume,
-        int voice,
+        int audioChannel,
         String callbackId,
         SpeakResultCallback resultCallback,
         int queueStrategy,
@@ -106,62 +117,177 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             stop();
         }
 
-        // 设置音频路由
-        AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-        if (forceSpeaker) {
-            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-            audioManager.setSpeakerphoneOn(true);
-            // 设置音频流类型为通话音频
-            tts.setAudioAttributes(new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build());
-        } else {
-            audioManager.setMode(AudioManager.MODE_NORMAL);
-            audioManager.setSpeakerphoneOn(false);
-            audioManager.setMode(AudioManager.MODE_CURRENT); // 确保模式切换生效
-            tts.setAudioAttributes(new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build());
-        }
-
-        requests.put(callbackId, resultCallback);
-
+        // 设置语言等基本参数
         Locale locale = Locale.forLanguageTag(lang);
+        tts.setLanguage(locale);
+        tts.setSpeechRate(rate);
+        tts.setPitch(pitch);
 
-        if (Build.VERSION.SDK_INT >= 21) {
-            Bundle ttsParams = new Bundle();
-            ttsParams.putSerializable(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, callbackId);
-            ttsParams.putSerializable(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_VOLUME, volume);
+        // 创建临时文件
+        File outputFile = new File(context.getCacheDir(), callbackId + ".wav");
+        
+        Bundle params = new Bundle();
+        params.putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, callbackId);
 
-            tts.setLanguage(locale);
-            tts.setSpeechRate(rate);
-            tts.setPitch(pitch);
+        // 设置合成完成的监听器
+        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+            @Override
+            public void onStart(String utteranceId) {}
 
-            if (voice >= 0) {
-                ArrayList<Voice> supportedVoices = getSupportedVoicesOrdered();
-                if (voice < supportedVoices.size()) {
-                    Voice newVoice = supportedVoices.get(voice);
-                    int resultCode = tts.setVoice(newVoice);
+            @Override
+            public void onDone(String utteranceId) {
+                TTSRequest request = new TTSRequest(text, utteranceId, audioChannel, forceSpeaker, resultCallback);
+                ttsQueue.offer(request);
+                
+                if (!isPlaying) {
+                    playNext();
                 }
             }
-            tts.speak(text, queueStrategy, ttsParams, callbackId);
-        } else {
-            HashMap<String, String> ttsParams = new HashMap<>();
-            ttsParams.put(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, callbackId);
-            ttsParams.put(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_VOLUME, Float.toString(volume));
 
-            tts.setLanguage(locale);
-            tts.setSpeechRate(rate);
-            tts.setPitch(pitch);
-            tts.speak(text, queueStrategy, ttsParams);
+            @Override
+            public void onError(String utteranceId) {
+                if (resultCallback != null) {
+                    resultCallback.onError();
+                }
+            }
+
+            @Override
+            public void onRangeStart(String utteranceId, int start, int end, int frame) {}
+        });
+
+        int result = tts.synthesizeToFile(text, params, outputFile, callbackId);
+        if (result != android.speech.tts.TextToSpeech.SUCCESS) {
+            if (resultCallback != null) {
+                resultCallback.onError();
+            }
+        }
+    }
+
+    private void playNext() {
+        if (ttsQueue.isEmpty()) {
+            isPlaying = false;
+            return;
+        }
+
+        isPlaying = true;
+        TTSRequest request = ttsQueue.poll();
+        File audioFile = new File(context.getCacheDir(), request.utteranceId + ".wav");
+
+        try {
+            if (!audioFile.exists()) {
+                Log.e(LOG_TAG, "Audio file not found: " + audioFile.getPath());
+                if (request.callback != null) {
+                    request.callback.onError();
+                }
+                playNext();
+                return;
+            }
+
+            if (mediaPlayer != null) {
+                mediaPlayer.release();
+            }
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(audioFile.getPath());
+            
+            // 设置音频属性
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setUsage(request.forceSpeaker ?
+                    AudioAttributes.USAGE_VOICE_COMMUNICATION :
+                    AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build();
+            mediaPlayer.setAudioAttributes(audioAttributes);
+
+            // 请求音频焦点
+            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            final AudioFocusRequest[] focusRequest = new AudioFocusRequest[1];
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                focusRequest[0] = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(audioAttributes)
+                    .setOnAudioFocusChangeListener(focusChange -> {
+                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                            stop();
+                        }
+                    })
+                    .build();
+                audioManager.requestAudioFocus(focusRequest[0]);
+            } else {
+                audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+            }
+
+            // 设置音量
+            switch (request.audioChannel) {
+                case 1: // 左声道
+                    mediaPlayer.setVolume(1.0f, 0.0f);
+                    break;
+                case 2: // 右声道
+                    mediaPlayer.setVolume(0.0f, 1.0f);
+                    break;
+                default: // 双声道
+                    mediaPlayer.setVolume(1.0f, 1.0f);
+                    break;
+            }
+
+            // 设置扬声器状态（如果需要）
+            if (request.forceSpeaker) {
+                audioManager.setSpeakerphoneOn(true);
+            }
+
+            mediaPlayer.setOnCompletionListener(mp -> {
+                audioFile.delete();
+                // 释放音频焦点
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest[0] != null) {
+                    audioManager.abandonAudioFocusRequest(focusRequest[0]);
+                } else {
+                    audioManager.abandonAudioFocus(null);
+                }
+                if (request.callback != null) {
+                    request.callback.onDone();
+                }
+                playNext();
+            });
+
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Log.e(LOG_TAG, "MediaPlayer error: " + what + ", " + extra);
+                audioFile.delete();
+                if (request.callback != null) {
+                    request.callback.onError();
+                }
+                playNext();
+                return true;
+            });
+
+            mediaPlayer.prepare();
+            mediaPlayer.start();
+        } catch (Exception e) {
+            Log.e(LOG_TAG, "Error playing audio: " + e.getMessage());
+            audioFile.delete();
+            if (request.callback != null) {
+                request.callback.onError();
+            }
+            playNext();
         }
     }
 
     public void stop() {
-        tts.stop();
-        requests.clear();
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+        ttsQueue.clear();
+        isPlaying = false;
+        
+        // 清理缓存文件
+        File cacheDir = context.getCacheDir();
+        File[] files = cacheDir.listFiles((dir, name) -> name.endsWith(".wav"));
+        if (files != null) {
+            for (File file : files) {
+                file.delete();
+            }
+        }
     }
 
     public JSArray getSupportedLanguages() {
@@ -229,11 +355,10 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
     }
 
     public void onDestroy() {
-        if (tts == null) {
-            return;
+        stop();
+        if (tts != null) {
+            tts.shutdown();
         }
-        tts.stop();
-        tts.shutdown();
     }
 
     private JSObject convertVoiceToJSObject(Voice voice) {

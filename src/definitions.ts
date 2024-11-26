@@ -111,6 +111,12 @@ export interface TTSOptions {
    * @default false
    */
   forceSpeaker?: boolean;
+  /**
+   * Select the audio channel to use for the utterance.
+   * Only available for Android.
+   * @default 0 (stereo)
+   */
+  audioChannel?: number;
 }
 
 /**
