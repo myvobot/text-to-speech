@@ -43,13 +43,15 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         String utteranceId;
         int audioChannel;
         boolean forceSpeaker;
+        float volume;
         SpeakResultCallback callback;
         
-        TTSRequest(String text, String utteranceId, int audioChannel, boolean forceSpeaker, SpeakResultCallback callback) {
+        TTSRequest(String text, String utteranceId, int audioChannel, boolean forceSpeaker, float volume, SpeakResultCallback callback) {
             this.text = text;
             this.utteranceId = utteranceId;
             this.audioChannel = audioChannel;
             this.forceSpeaker = forceSpeaker;
+            this.volume = volume;
             this.callback = callback;
         }
     }
@@ -125,7 +127,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
 
         // 创建临时文件
         File outputFile = new File(context.getCacheDir(), callbackId + ".wav");
-        
+
         Bundle params = new Bundle();
         params.putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, callbackId);
 
@@ -136,9 +138,9 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
 
             @Override
             public void onDone(String utteranceId) {
-                TTSRequest request = new TTSRequest(text, utteranceId, audioChannel, forceSpeaker, resultCallback);
+                TTSRequest request = new TTSRequest(text, utteranceId, audioChannel, forceSpeaker, volume, resultCallback);
                 ttsQueue.offer(request);
-                
+
                 if (!isPlaying) {
                     playNext();
                 }
@@ -188,7 +190,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             }
             mediaPlayer = new MediaPlayer();
             mediaPlayer.setDataSource(audioFile.getPath());
-            
+
             // 设置音频属性
             AudioAttributes audioAttributes = new AudioAttributes.Builder()
                 .setUsage(request.forceSpeaker ?
@@ -201,7 +203,13 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             // 请求音频焦点
             AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             final AudioFocusRequest[] focusRequest = new AudioFocusRequest[1];
-
+            if (request.forceSpeaker) {
+                audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                audioManager.setSpeakerphoneOn(true);
+            } else {
+                audioManager.setMode(AudioManager.MODE_NORMAL);
+                audioManager.setSpeakerphoneOn(false);
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 focusRequest[0] = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                     .setAudioAttributes(audioAttributes)
@@ -217,23 +225,29 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
             }
 
-            // 设置音量
+            // 获取当前系统音量
+            int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            // 获取系统最大音量
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+
+            // 如果需要直接设置系统音量（需要权限）
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(maxVolume * request.volume), AudioManager.FLAG_SHOW_UI);
+
+            // 设置音量和左右声道
+            float leftVolume = request.volume;
+            float rightVolume = request.volume;
             switch (request.audioChannel) {
                 case 1: // 左声道
-                    mediaPlayer.setVolume(1.0f, 0.0f);
+                    rightVolume = 0.0f;
                     break;
                 case 2: // 右声道
-                    mediaPlayer.setVolume(0.0f, 1.0f);
+                    leftVolume = 0.0f;
                     break;
                 default: // 双声道
-                    mediaPlayer.setVolume(1.0f, 1.0f);
+                    // 保持左右声道为 request.volume
                     break;
             }
-
-            // 设置扬声器状态（如果需要）
-            if (request.forceSpeaker) {
-                audioManager.setSpeakerphoneOn(true);
-            }
+            mediaPlayer.setVolume(leftVolume, rightVolume);
 
             mediaPlayer.setOnCompletionListener(mp -> {
                 audioFile.delete();
