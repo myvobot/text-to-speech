@@ -130,6 +130,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
 
         Bundle params = new Bundle();
         params.putString(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, callbackId);
+        params.putFloat(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_VOLUME, volume);
 
         // 设置合成完成的监听器
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
