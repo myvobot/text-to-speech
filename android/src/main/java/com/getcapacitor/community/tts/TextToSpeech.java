@@ -225,13 +225,13 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
                     AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
             }
 
-            // 获取当前系统音量
-            int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-            // 获取系统最大音量
-            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            // // 获取当前系统音量
+            // int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            // // 获取系统最大音量
+            // int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
 
-            // 如果需要直接设置系统音量（需要权限）
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(maxVolume * request.volume), AudioManager.FLAG_SHOW_UI);
+            // // 如果需要直接设置系统音量（需要权限）
+            // audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(maxVolume * request.volume), AudioManager.FLAG_SHOW_UI);
 
             // 设置音量和左右声道
             float leftVolume = request.volume;
