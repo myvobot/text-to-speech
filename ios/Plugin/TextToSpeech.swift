@@ -28,7 +28,11 @@ enum QUEUE_STRATEGY: Int {
             avAudioSessionCategory = .playAndRecord
             options.insert(.defaultToSpeaker)
         } else {
-            avAudioSessionCategory = .playback
+            if #available(iOS 16.0, *) {
+                avAudioSessionCategory = .playback
+            } else {
+                avAudioSessionCategory = .playAndRecord
+            }
             options.insert(.allowBluetooth)
             options.insert(.allowBluetoothA2DP)
             options.insert(.allowAirPlay)
@@ -47,7 +51,6 @@ enum QUEUE_STRATEGY: Int {
     }
 
     @objc public func speak(_ text: String, _ lang: String, _ rate: Float, _ pitch: Float, _ category: String, _ volume: Float, _ voice: Int, _ queueStrategy: Int, _ forceSpeaker: Bool, _ audioChannel: Int, _ call: CAPPluginCall) throws {
-        print("speak: \(text), lang: \(lang)")
         if queueStrategy == QUEUE_STRATEGY.QUEUE_FLUSH.rawValue {
             self.synthesizer.stopSpeaking(at: .immediate)
         }
@@ -92,7 +95,9 @@ enum QUEUE_STRATEGY: Int {
                 if self.audioFile == nil {
                     self.audioFile = try? AVAudioFile(
                         forWriting: tempFile,
-                        settings: pcmBuffer.format.settings
+                        settings: pcmBuffer.format.settings,
+                        commonFormat: pcmBuffer.format.commonFormat,
+                        interleaved: pcmBuffer.format.isInterleaved
                     )
                 }
                 try? self.audioFile?.write(from: pcmBuffer)
