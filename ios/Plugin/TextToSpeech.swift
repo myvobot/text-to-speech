@@ -21,6 +21,10 @@ enum QUEUE_STRATEGY: Int {
     }
 
     private func setupAudioSession(forceSpeaker: Bool) throws {
+        // let originalCategory = AVAudioSession.sharedInstance().category
+        // let originalMode = AVAudioSession.sharedInstance().mode
+        // let originalOptions = AVAudioSession.sharedInstance().categoryOptions
+        // print("originalCategory: \(originalCategory), originalMode: \(originalMode), originalOptions: \(originalOptions)")
         let avAudioSessionCategory: AVAudioSession.Category
         var options: AVAudioSession.CategoryOptions = [.duckOthers]
 
@@ -29,13 +33,13 @@ enum QUEUE_STRATEGY: Int {
             options.insert(.defaultToSpeaker)
         } else {
             if #available(iOS 16.0, *) {
-                avAudioSessionCategory = .playback
+                // avAudioSessionCategory = .playback
+                avAudioSessionCategory = .playAndRecord
             } else {
                 avAudioSessionCategory = .playAndRecord
             }
-            options.insert(.allowBluetooth)
             options.insert(.allowBluetoothA2DP)
-            options.insert(.allowAirPlay)
+            options.insert(.mixWithOthers)
         }
 
         try AVAudioSession.sharedInstance().setCategory(avAudioSessionCategory, mode: .default, options: options)
@@ -51,6 +55,7 @@ enum QUEUE_STRATEGY: Int {
     }
 
     @objc public func speak(_ text: String, _ lang: String, _ rate: Float, _ pitch: Float, _ category: String, _ volume: Float, _ voice: Int, _ queueStrategy: Int, _ forceSpeaker: Bool, _ audioChannel: Int, _ call: CAPPluginCall) throws {
+        print("speak: \(text), lang: \(lang), forceSpeaker: \(forceSpeaker)")
         if queueStrategy == QUEUE_STRATEGY.QUEUE_FLUSH.rawValue {
             self.synthesizer.stopSpeaking(at: .immediate)
         }
@@ -190,6 +195,7 @@ private func playAudioFile(_ fileURL: URL, audioChannel: Int) {
     @objc public func isLanguageSupported(_ lang: String) -> Bool {
         let voice = AVSpeechSynthesisVoice(language: lang)
         return voice != nil
+
     }
 
     // Adjust rate for a closer match to other platform.
