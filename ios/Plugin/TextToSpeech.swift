@@ -20,7 +20,7 @@ enum QUEUE_STRATEGY: Int {
         self.synthesizer.delegate = self
     }
 
-    private func setupAudioSession(forceSpeaker: Bool) throws {
+    public func setAudioRoute(forceSpeaker: Bool) throws {
         // let originalCategory = AVAudioSession.sharedInstance().category
         // let originalMode = AVAudioSession.sharedInstance().mode
         // let originalOptions = AVAudioSession.sharedInstance().categoryOptions
@@ -63,7 +63,7 @@ enum QUEUE_STRATEGY: Int {
         
         // 设置音频会话
         do {
-            try setupAudioSession(forceSpeaker: forceSpeaker)
+            try setAudioRoute(forceSpeaker: forceSpeaker)
         } catch {
             print("Error setting up AVAudioSession: \(error)")
         }

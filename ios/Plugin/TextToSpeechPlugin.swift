@@ -80,4 +80,15 @@ public class TextToSpeechPlugin: CAPPlugin {
             "supported": isLanguageSupported
         ])
     }
+
+    @objc func setAudioRoute(_ call: CAPPluginCall) {
+        let forceSpeaker = call.getBool("forceSpeaker") ?? false
+        print("~~~forceSpeaker: \(forceSpeaker)")
+        do {
+            try implementation.setAudioRoute(forceSpeaker: forceSpeaker)
+            call.resolve()
+        } catch {
+            call.reject("Failed to set audio route: \(error.localizedDescription)")
+        }
+    }
 }
