@@ -139,6 +139,18 @@ public class TextToSpeechPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void setAudioRoute(PluginCall call) {
+        boolean forceSpeaker = call.getBoolean("forceSpeaker", false);
+        Log.d(LOG_TAG, "CCsetAudioRoute: " + forceSpeaker);
+        try {
+            implementation.setAudioRoute(forceSpeaker);
+            call.resolve(); // 添加成功响应
+        } catch (Exception ex) {
+            call.reject(ex.getLocalizedMessage());
+        }
+    }
+
     @Override
     protected void handleOnDestroy() {
         implementation.onDestroy();

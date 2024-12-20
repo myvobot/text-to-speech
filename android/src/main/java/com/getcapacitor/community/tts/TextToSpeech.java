@@ -37,6 +37,8 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
     private MediaPlayer mediaPlayer;
     private LinkedBlockingQueue<TTSRequest> ttsQueue = new LinkedBlockingQueue<>();
     private boolean isPlaying = false;
+    private AudioManager audioManager;
+    private AudioFocusRequest currentFocusRequest;
     
     private class TTSRequest {
         String text;
@@ -58,6 +60,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
 
     TextToSpeech(Context context) {
         this.context = context;
+        this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         try {
             tts = new android.speech.tts.TextToSpeech(context, this);
             tts.setOnUtteranceProgressListener(
@@ -166,6 +169,55 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         }
     }
 
+    private void setupAudioSession(boolean forceSpeaker, AudioAttributes audioAttributes) {
+        if (forceSpeaker) {
+            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+            audioManager.setSpeakerphoneOn(true);
+        } else {
+            audioManager.setMode(AudioManager.MODE_NORMAL);
+            audioManager.setSpeakerphoneOn(false);
+        }
+
+        // 请求音频焦点
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // 如果存在之前的请求，先放弃它
+            if (currentFocusRequest != null) {
+                audioManager.abandonAudioFocusRequest(currentFocusRequest);
+            }
+            
+            currentFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(audioAttributes)
+                .setOnAudioFocusChangeListener(focusChange -> {
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                        stop();
+                    }
+                })
+                .build();
+            audioManager.requestAudioFocus(currentFocusRequest);
+        } else {
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+        }
+    }
+
+    public void setAudioRoute(boolean forceSpeaker) {
+        try {
+            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            
+            if (forceSpeaker) {
+                audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                audioManager.setSpeakerphoneOn(true);
+            } else {
+                audioManager.setMode(AudioManager.MODE_NORMAL);
+                audioManager.setSpeakerphoneOn(false);
+            }
+            
+        } catch (Exception e) {
+            // call.reject("Failed to set audio route: " + e.getMessage());
+            Log.e(LOG_TAG, "Failed to set audio route: " + e.getMessage());
+        }
+    }
+
     private void playNext() {
         if (ttsQueue.isEmpty()) {
             isPlaying = false;
@@ -201,38 +253,8 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
                 .build();
             mediaPlayer.setAudioAttributes(audioAttributes);
 
-            // 请求音频焦点
-            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            final AudioFocusRequest[] focusRequest = new AudioFocusRequest[1];
-            if (request.forceSpeaker) {
-                audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-                audioManager.setSpeakerphoneOn(true);
-            } else {
-                audioManager.setMode(AudioManager.MODE_NORMAL);
-                audioManager.setSpeakerphoneOn(false);
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                focusRequest[0] = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                    .setAudioAttributes(audioAttributes)
-                    .setOnAudioFocusChangeListener(focusChange -> {
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-                            stop();
-                        }
-                    })
-                    .build();
-                audioManager.requestAudioFocus(focusRequest[0]);
-            } else {
-                audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
-            }
-
-            // // 获取当前系统音量
-            // int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
-            // // 获取系统最大音量
-            // int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-
-            // // 如果需要直接设置系统音量（需要权限）
-            // audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (int)(maxVolume * request.volume), AudioManager.FLAG_SHOW_UI);
+            // 设置音频会话
+            setupAudioSession(request.forceSpeaker, audioAttributes);
 
             // 设置音量和左右声道
             float leftVolume = request.volume;
@@ -253,8 +275,9 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             mediaPlayer.setOnCompletionListener(mp -> {
                 audioFile.delete();
                 // 释放音频焦点
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest[0] != null) {
-                    audioManager.abandonAudioFocusRequest(focusRequest[0]);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && currentFocusRequest != null) {
+                    audioManager.abandonAudioFocusRequest(currentFocusRequest);
+                    currentFocusRequest = null;
                 } else {
                     audioManager.abandonAudioFocus(null);
                 }
@@ -294,6 +317,14 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         }
         ttsQueue.clear();
         isPlaying = false;
+        
+        // 释放音频焦点
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && currentFocusRequest != null) {
+            audioManager.abandonAudioFocusRequest(currentFocusRequest);
+            currentFocusRequest = null;
+        } else {
+            audioManager.abandonAudioFocus(null);
+        }
         
         // 清理缓存文件
         File cacheDir = context.getCacheDir();
