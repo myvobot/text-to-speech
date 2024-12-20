@@ -39,6 +39,9 @@ export interface TextToSpeechPlugin {
         end: number;
         spokenWord: string;
     }) => void): Promise<PluginListenerHandle>;
+    setAudioRoute(options: {
+        forceSpeaker: boolean;
+    }): Promise<void>;
 }
 export declare enum QueueStrategy {
     /**

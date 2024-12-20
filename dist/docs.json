@@ -103,6 +103,22 @@
           "PluginListenerHandle"
         ],
         "slug": "addlisteneronrangestart"
+      },
+      {
+        "name": "setAudioRoute",
+        "signature": "(options: { forceSpeaker: boolean; }) => Promise<void>",
+        "parameters": [
+          {
+            "name": "options",
+            "docs": "",
+            "type": "{ forceSpeaker: boolean; }"
+          }
+        ],
+        "returns": "Promise<void>",
+        "tags": [],
+        "docs": "",
+        "complexTypes": [],
+        "slug": "setaudioroute"
       }
     ],
     "properties": []

@@ -109,6 +109,11 @@ class TextToSpeechWeb extends core.WebPlugin {
     throwUnimplementedError() {
         throw this.unimplemented('Not implemented on web.');
     }
+    async setAudioRoute() {
+        // Web 端不需要实际实现，因为浏览器会自动处理音频输出
+        // 我们可以直接返回成功，或者抛出"未实现"错误
+        this.throwUnimplementedError();
+    }
 }
 
 var web = /*#__PURE__*/Object.freeze({

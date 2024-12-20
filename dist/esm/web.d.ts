@@ -22,4 +22,5 @@ export declare class TextToSpeechWeb extends WebPlugin implements TextToSpeechPl
     private getSpeechSynthesisVoices;
     private throwUnsupportedError;
     private throwUnimplementedError;
+    setAudioRoute(): Promise<void>;
 }

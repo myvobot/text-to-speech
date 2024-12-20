@@ -83,6 +83,7 @@ const isLanguageSupported = async (lang: string) => {
 * [`isLanguageSupported(...)`](#islanguagesupported)
 * [`openInstall()`](#openinstall)
 * [`addListener('onRangeStart', ...)`](#addlisteneronrangestart)
+* [`setAudioRoute(...)`](#setaudioroute)
 * [Interfaces](#interfaces)
 * [Enums](#enums)
 
@@ -189,21 +190,36 @@ addListener(eventName: 'onRangeStart', listenerFunc: (info: { start: number; end
 --------------------
 
 
+### setAudioRoute(...)
+
+```typescript
+setAudioRoute(options: { forceSpeaker: boolean; }) => Promise<void>
+```
+
+| Param         | Type                                    |
+| ------------- | --------------------------------------- |
+| **`options`** | <code>{ forceSpeaker: boolean; }</code> |
+
+--------------------
+
+
 ### Interfaces
 
 
 #### TTSOptions
 
-| Prop           | Type                | Description                                                                                                                                                                    | Default                |
-| -------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
-| **`text`**     | <code>string</code> | The text that will be synthesised when the utterance is spoken.                                                                                                                |                        |
-| **`lang`**     | <code>string</code> | The language of the utterance. Possible languages can be queried using `getSupportedLanguages`.                                                                                | <code>"en-US"</code>   |
-| **`rate`**     | <code>number</code> | The speed at which the utterance will be spoken at.                                                                                                                            | <code>1.0</code>       |
-| **`pitch`**    | <code>number</code> | The pitch at which the utterance will be spoken at.                                                                                                                            | <code>1.0</code>       |
-| **`volume`**   | <code>number</code> | The volume that the utterance will be spoken at.                                                                                                                               | <code>1.0</code>       |
-| **`voice`**    | <code>number</code> | The index of the selected voice that will be used to speak the utterance. Possible voices can be queried using `getSupportedVoices`.                                           |                        |
-| **`category`** | <code>string</code> | Select the iOS Audio session category. Possible values: `ambient` and `playback`. Use `playback` to play audio even when the app is in the background. Only available for iOS. | <code>"ambient"</code> |
-| **`queueStrategy`** | <code><a href="#queuestrategy">QueueStrategy</a></code> | Select the strategy to adopt when several requests to speak overlap. | <code>QueueStrategy.Flush</code> | 5.1.0 |
+| Prop                | Type                                                    | Description                                                                                                                                                                    | Default                          | Since |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ----- |
+| **`text`**          | <code>string</code>                                     | The text that will be synthesised when the utterance is spoken.                                                                                                                |                                  |       |
+| **`lang`**          | <code>string</code>                                     | The language of the utterance. Possible languages can be queried using `getSupportedLanguages`.                                                                                | <code>"en-US"</code>             |       |
+| **`rate`**          | <code>number</code>                                     | The speed at which the utterance will be spoken at.                                                                                                                            | <code>1.0</code>                 |       |
+| **`pitch`**         | <code>number</code>                                     | The pitch at which the utterance will be spoken at.                                                                                                                            | <code>1.0</code>                 |       |
+| **`volume`**        | <code>number</code>                                     | The volume that the utterance will be spoken at.                                                                                                                               | <code>1.0</code>                 |       |
+| **`voice`**         | <code>number</code>                                     | The index of the selected voice that will be used to speak the utterance. Possible voices can be queried using `getSupportedVoices`.                                           |                                  |       |
+| **`category`**      | <code>string</code>                                     | Select the iOS Audio session category. Possible values: `ambient` and `playback`. Use `playback` to play audio even when the app is in the background. Only available for iOS. | <code>"ambient"</code>           |       |
+| **`queueStrategy`** | <code><a href="#queuestrategy">QueueStrategy</a></code> | Select the strategy to adopt when several requests to speak overlap.                                                                                                           | <code>QueueStrategy.Flush</code> | 5.1.0 |
+| **`forceSpeaker`**  | <code>boolean</code>                                    | Force audio output to speaker Only available for iOS                                                                                                                           | <code>false</code>               |       |
+| **`audioChannel`**  | <code>number</code>                                     | Select the audio channel to use for the utterance. Only available for Android.                                                                                                 | <code>0 (stereo)</code>          |       |
 
 
 #### SpeechSynthesisVoice
@@ -231,8 +247,8 @@ The <a href="#speechsynthesisvoice">SpeechSynthesisVoice</a> interface represent
 
 #### QueueStrategy
 
-| Members     | Value          | Description                                                                                                            |
-| ----------- | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Members     | Value          | Description                                                                                                          |
+| ----------- | -------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **`Flush`** | <code>0</code> | Use `Flush` to stop the current request when a new request is sent.                                                  |
 | **`Add`**   | <code>1</code> | Use `Add` to buffer the speech request. The request will be executed when all previous requests have been completed. |
 
