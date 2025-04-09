@@ -4,8 +4,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.media.AudioManager;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.speech.tts.UtteranceProgressListener;
@@ -13,18 +16,15 @@ import android.speech.tts.Voice;
 import android.util.Log;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import android.media.MediaPlayer;
-import java.io.File;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.UUID;
-import android.media.AudioFocusRequest;
-import android.media.AudioDeviceInfo;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListener {
 
@@ -40,15 +40,16 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
     private boolean isPlaying = false;
     private AudioManager audioManager;
     private AudioFocusRequest currentFocusRequest;
-    
+
     private class TTSRequest {
+
         String text;
         String utteranceId;
         int audioChannel;
         boolean forceSpeaker;
         float volume;
         SpeakResultCallback callback;
-        
+
         TTSRequest(String text, String utteranceId, int audioChannel, boolean forceSpeaker, float volume, SpeakResultCallback callback) {
             this.text = text;
             this.utteranceId = utteranceId;
@@ -137,30 +138,32 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         params.putFloat(android.speech.tts.TextToSpeech.Engine.KEY_PARAM_VOLUME, volume);
 
         // 设置合成完成的监听器
-        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-            @Override
-            public void onStart(String utteranceId) {}
+        tts.setOnUtteranceProgressListener(
+            new UtteranceProgressListener() {
+                @Override
+                public void onStart(String utteranceId) {}
 
-            @Override
-            public void onDone(String utteranceId) {
-                TTSRequest request = new TTSRequest(text, utteranceId, audioChannel, forceSpeaker, volume, resultCallback);
-                ttsQueue.offer(request);
+                @Override
+                public void onDone(String utteranceId) {
+                    TTSRequest request = new TTSRequest(text, utteranceId, audioChannel, forceSpeaker, volume, resultCallback);
+                    ttsQueue.offer(request);
 
-                if (!isPlaying) {
-                    playNext();
+                    if (!isPlaying) {
+                        playNext();
+                    }
                 }
-            }
 
-            @Override
-            public void onError(String utteranceId) {
-                if (resultCallback != null) {
-                    resultCallback.onError();
+                @Override
+                public void onError(String utteranceId) {
+                    if (resultCallback != null) {
+                        resultCallback.onError();
+                    }
                 }
-            }
 
-            @Override
-            public void onRangeStart(String utteranceId, int start, int end, int frame) {}
-        });
+                @Override
+                public void onRangeStart(String utteranceId, int start, int end, int frame) {}
+            }
+        );
 
         int result = tts.synthesizeToFile(text, params, outputFile, callbackId);
         if (result != android.speech.tts.TextToSpeech.SUCCESS) {
@@ -185,26 +188,28 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             if (currentFocusRequest != null) {
                 audioManager.abandonAudioFocusRequest(currentFocusRequest);
             }
-            
-            currentFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                .setAudioAttributes(audioAttributes)
-                .setOnAudioFocusChangeListener(focusChange -> {
-                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-                        stop();
-                    }
-                })
-                .build();
+
+            currentFocusRequest =
+                new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(audioAttributes)
+                    .setOnAudioFocusChangeListener(
+                        focusChange -> {
+                            if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                                stop();
+                            }
+                        }
+                    )
+                    .build();
             audioManager.requestAudioFocus(currentFocusRequest);
         } else {
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
         }
     }
 
     public void setAudioRoute(boolean forceSpeaker) {
         try {
             AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            
+
             if (forceSpeaker) {
                 audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
                 audioManager.setSpeakerphoneOn(true);
@@ -212,7 +217,6 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
                 audioManager.setMode(AudioManager.MODE_NORMAL);
                 audioManager.setSpeakerphoneOn(false);
             }
-            
         } catch (Exception e) {
             // call.reject("Failed to set audio route: " + e.getMessage());
             Log.e(LOG_TAG, "Failed to set audio route: " + e.getMessage());
@@ -247,9 +251,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
 
             // 设置音频属性
             AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                .setUsage(request.forceSpeaker ?
-                    AudioAttributes.USAGE_VOICE_COMMUNICATION :
-                    AudioAttributes.USAGE_MEDIA)
+                .setUsage(request.forceSpeaker ? AudioAttributes.USAGE_VOICE_COMMUNICATION : AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build();
             mediaPlayer.setAudioAttributes(audioAttributes);
@@ -273,30 +275,34 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             }
             mediaPlayer.setVolume(leftVolume, rightVolume);
 
-            mediaPlayer.setOnCompletionListener(mp -> {
-                audioFile.delete();
-                // 释放音频焦点
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && currentFocusRequest != null) {
-                    audioManager.abandonAudioFocusRequest(currentFocusRequest);
-                    currentFocusRequest = null;
-                } else {
-                    audioManager.abandonAudioFocus(null);
+            mediaPlayer.setOnCompletionListener(
+                mp -> {
+                    audioFile.delete();
+                    // 释放音频焦点
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && currentFocusRequest != null) {
+                        audioManager.abandonAudioFocusRequest(currentFocusRequest);
+                        currentFocusRequest = null;
+                    } else {
+                        audioManager.abandonAudioFocus(null);
+                    }
+                    if (request.callback != null) {
+                        request.callback.onDone();
+                    }
+                    playNext();
                 }
-                if (request.callback != null) {
-                    request.callback.onDone();
-                }
-                playNext();
-            });
+            );
 
-            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                Log.e(LOG_TAG, "MediaPlayer error: " + what + ", " + extra);
-                audioFile.delete();
-                if (request.callback != null) {
-                    request.callback.onError();
+            mediaPlayer.setOnErrorListener(
+                (mp, what, extra) -> {
+                    Log.e(LOG_TAG, "MediaPlayer error: " + what + ", " + extra);
+                    audioFile.delete();
+                    if (request.callback != null) {
+                        request.callback.onError();
+                    }
+                    playNext();
+                    return true;
                 }
-                playNext();
-                return true;
-            });
+            );
 
             mediaPlayer.prepare();
             mediaPlayer.start();
@@ -308,7 +314,6 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             }
             playNext();
         }
-        tts.speak(text, queueStrategy, ttsParams, callbackId);
     }
 
     public void stop() {
@@ -319,7 +324,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         }
         ttsQueue.clear();
         isPlaying = false;
-        
+
         // 释放音频焦点
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && currentFocusRequest != null) {
             audioManager.abandonAudioFocusRequest(currentFocusRequest);
@@ -327,7 +332,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         } else {
             audioManager.abandonAudioFocus(null);
         }
-        
+
         // 清理缓存文件
         File cacheDir = context.getCacheDir();
         File[] files = cacheDir.listFiles((dir, name) -> name.endsWith(".wav"));
@@ -422,7 +427,7 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
 
     public JSArray getConnectedAudioDevices() {
         JSArray devices = new JSArray();
-        
+
         try {
             // 检查扬声器状态
             if (audioManager.isSpeakerphoneOn()) {
@@ -445,17 +450,17 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
             }
 
             // 获取蓝牙设备
-            Object[] audioDevices = (Object[]) audioManager.getClass()
+            Object[] audioDevices = (Object[]) audioManager
+                .getClass()
                 .getMethod("getDevices", int.class)
                 .invoke(audioManager, AudioManager.GET_DEVICES_OUTPUTS);
-            
+
             if (audioDevices != null) {
                 for (Object device : audioDevices) {
                     Class<?> deviceClass = device.getClass();
                     int type = (int) deviceClass.getMethod("getType").invoke(device);
-                    
-                    if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || 
-                        type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+
+                    if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
                         String address = (String) deviceClass.getMethod("getAddress").invoke(device);
                         if (address != null && !address.equals("00:00:00:00:00:00") && !address.isEmpty()) {
                             JSObject bluetooth = new JSObject();
@@ -478,7 +483,6 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
                 receiver.put("category", "receiver");
                 devices.put(receiver);
             }
-
         } catch (Exception e) {
             Log.e("TextToSpeech", "Error getting audio devices: " + e.getMessage());
         }
