@@ -32,6 +32,10 @@ export interface TextToSpeechPlugin {
     eventName: 'onRangeStart',
     listenerFunc: (info: { start: number; end: number; spokenWord: string }) => void,
   ): Promise<PluginListenerHandle>;
+
+  setAudioRoute(options: { forceSpeaker: boolean }): Promise<void>;
+
+  getConnectedAudioDevices(): Promise<{ devices: ConnectedDevice[] }>;
 }
 
 export enum QueueStrategy {
@@ -99,6 +103,18 @@ export interface TTSOptions {
    * @default QueueStrategy.Flush
    */
   queueStrategy?: QueueStrategy;
+  /**
+   * Force audio output to speaker
+   * Only available for iOS
+   * @default false
+   */
+  forceSpeaker?: boolean;
+  /**
+   * Select the audio channel to use for the utterance.
+   * Only available for Android.
+   * @default 0 (stereo)
+   */
+  audioChannel?: number;
 }
 
 /**
@@ -135,4 +151,11 @@ export interface SpeechSynthesisVoice {
    * @example "urn:moz-tts:sapi:Microsoft Zira Desktop - English (United States)?en-US"
    */
   voiceURI: string;
+}
+
+export interface ConnectedDevice {
+  name: string;
+  category: string;
+  type: string;
+  uid: string;
 }

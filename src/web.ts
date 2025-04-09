@@ -1,6 +1,6 @@
 import { WebPlugin } from '@capacitor/core';
 
-import type { TextToSpeechPlugin, TTSOptions } from './definitions';
+import type { TextToSpeechPlugin, TTSOptions, ConnectedDevice } from './definitions';
 
 export class TextToSpeechWeb extends WebPlugin implements TextToSpeechPlugin {
   private speechSynthesis: SpeechSynthesis | null = null;
@@ -103,6 +103,17 @@ export class TextToSpeechWeb extends WebPlugin implements TextToSpeechPlugin {
   }
 
   private throwUnimplementedError(): never {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
+  public async setAudioRoute(): Promise<void> {
+    // Web 端不需要实际实现，因为浏览器会自动处理音频输出
+    // 我们可以直接返回成功，或者抛出"未实现"错误
+    this.throwUnimplementedError();
+  }
+
+  public async getConnectedAudioDevices(): Promise<{ devices: ConnectedDevice[] }> {
+    // Web 端无法获取具体的音频设备信息
     throw this.unimplemented('Not implemented on web.');
   }
 }

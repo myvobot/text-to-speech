@@ -38,7 +38,9 @@ public class TextToSpeechPlugin extends Plugin {
         float pitch = call.getFloat("pitch", 1.0f);
         float volume = call.getFloat("volume", 1.0f);
         int voice = call.getInt("voice", -1);
+        int audioChannel = call.getInt("audioChannel", 0); // 新增参数，默认为0（双声道）
         int queueStrategy = call.getInt("queueStrategy", 0);
+        boolean forceSpeaker = call.getBoolean("forceSpeaker", false);
 
         boolean isLanguageSupported = implementation.isLanguageSupported(lang);
         if (!isLanguageSupported) {
@@ -69,7 +71,7 @@ public class TextToSpeechPlugin extends Plugin {
         };
 
         try {
-            implementation.speak(text, lang, rate, pitch, volume, voice, call.getCallbackId(), resultCallback, queueStrategy);
+            implementation.speak(text, lang, rate, pitch, volume, voice, audioChannel, call.getCallbackId(), resultCallback, queueStrategy, forceSpeaker);
         } catch (Exception ex) {
             call.reject(ex.getLocalizedMessage());
         }
@@ -134,6 +136,30 @@ public class TextToSpeechPlugin extends Plugin {
             call.resolve();
         } catch (Exception ex) {
             call.reject(ex.getLocalizedMessage());
+        }
+    }
+
+    @PluginMethod
+    public void setAudioRoute(PluginCall call) {
+        boolean forceSpeaker = call.getBoolean("forceSpeaker", false);
+        Log.d(LOG_TAG, "CCsetAudioRoute: " + forceSpeaker);
+        try {
+            implementation.setAudioRoute(forceSpeaker);
+            call.resolve(); // 添加成功响应
+        } catch (Exception ex) {
+            call.reject(ex.getLocalizedMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getConnectedAudioDevices(PluginCall call) {
+        try {
+            JSArray devices = implementation.getConnectedAudioDevices();
+            JSObject ret = new JSObject();
+            ret.put("devices", devices);
+            call.resolve(ret);
+        } catch (Exception ex) {
+            call.reject("Failed to get connected audio devices: " + ex.getMessage());
         }
     }
 
