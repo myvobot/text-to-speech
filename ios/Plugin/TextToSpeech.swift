@@ -226,57 +226,49 @@ private func playAudioFile(_ fileURL: URL, audioChannel: Int) {
         var devices: [[String: Any]] = []
         let audioSession = AVAudioSession.sharedInstance()
         
-        // 1. 首先检查扬声器状态
-        if audioSession.currentRoute.outputs.contains(where: { $0.portType == .builtInSpeaker }) {
-            devices.append([
-                "name": "Speaker",
-                "type": "builtin_speaker",
-                "category": "speaker",
-                "uid": "speaker_default"
-            ])
-        }
-        
-        // 2. 检查有线耳机状态
-        if audioSession.currentRoute.outputs.contains(where: { $0.portType == .headphones || $0.portType == .headsetMic }) {
-            devices.append([
-                "name": "Wired Headset",
-                "type": "wired_headset",
-                "category": "wired",
-                "uid": "wired_default"
-            ])
-        }
-        
-        // 3. 检查蓝牙设备
-        // 尝试切换到蓝牙音频模式以确保能检测到蓝牙设备
+        // 确保音频会话已激活，并允许蓝牙设备
         do {
-            try audioSession.setCategory(.playAndRecord, 
-                options: [.allowBluetoothA2DP, .mixWithOthers])
+            try audioSession.setCategory(.playAndRecord, options: [.allowBluetoothA2DP, .allowBluetooth])
             try audioSession.setActive(true)
             
-            // 获取蓝牙设备
-            for output in audioSession.currentRoute.outputs where 
-                [.bluetoothA2DP, .bluetoothLE, .bluetoothHFP].contains(output.portType) {
-                devices.append([
-                    "name": output.portName,
-                    "type": "bluetooth_a2dp",
-                    "category": "bluetooth",
-                    "uid": output.uid.isEmpty ? "bluetooth_default" : output.uid
-                ])
+            // 获取当前连接的输出设备
+            let currentOutputs = audioSession.currentRoute.outputs
+            
+            // 检查当前输出中的蓝牙设备
+            for output in currentOutputs {
+                if [.bluetoothA2DP, .bluetoothHFP].contains(output.portType) {
+                    devices.append([
+                        "name": output.portName,
+                        "type": "bluetooth_a2dp",
+                        "category": "bluetooth",
+                        "uid": output.uid.isEmpty ? "bluetooth_default" : output.uid
+                    ])
+                }
             }
+            
+            // 获取可用的输入设备 (iOS音频API的限制，无法直接获取可用的蓝牙输出设备)
+            if let availableInputs = audioSession.availableInputs {
+                for input in availableInputs {
+                    // 检查是否为蓝牙输入设备
+                    if [.bluetoothHFP].contains(input.portType) {
+                        // 如果已经添加了相同UID的设备，就跳过
+                        let uid = input.uid.isEmpty ? "bluetooth_default" : input.uid
+                        if !devices.contains(where: { ($0["uid"] as? String) == uid }) {
+                            devices.append([
+                                "name": input.portName,
+                                "type": "bluetooth_a2dp", // 保持一致性
+                                "category": "bluetooth",
+                                "uid": uid
+                            ])
+                        }
+                    }
+                }
+            }
+            
         } catch {
-            print("切换到蓝牙音频失败: \(error)")
+            print("设置音频会话失败: \(error)")
         }
         
-        // 4. 如果没有检测到任何设备，返回默认接收器
-        if devices.isEmpty {
-            devices.append([
-                "name": "Phone",
-                "type": "builtin_receiver",
-                "category": "receiver",
-                "uid": "receiver_default"
-            ])
-        }
-    
         return devices
     }
 }

@@ -1,25 +1,29 @@
 package com.getcapacitor.community.tts;
 
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.media.AudioAttributes;
-import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.ParcelUuid;
 import android.speech.tts.UtteranceProgressListener;
 import android.speech.tts.Voice;
 import android.util.Log;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import java.io.File;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -428,63 +432,77 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
     public JSArray getConnectedAudioDevices() {
         JSArray devices = new JSArray();
 
-        try {
-            // 检查扬声器状态
-            if (audioManager.isSpeakerphoneOn()) {
-                JSObject speaker = new JSObject();
-                speaker.put("name", "Speaker");
-                speaker.put("type", "builtin_speaker");
-                speaker.put("uid", "speaker_default");
-                speaker.put("category", "speaker");
-                devices.put(speaker);
-            }
+        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        if (bluetoothAdapter == null) {
+            // 设备不支持蓝牙
+            return devices;
+        }
+        if (!bluetoothAdapter.isEnabled()) {
+            // 蓝牙功能未开启
+            return devices;
+        }
 
-            // 检查有线耳机状态
-            if (audioManager.isWiredHeadsetOn()) {
-                JSObject wired = new JSObject();
-                wired.put("name", "Wired Headset");
-                wired.put("type", "wired_headset");
-                wired.put("uid", "wired_default");
-                wired.put("category", "wired");
-                devices.put(wired);
-            }
+        // 获取已配对的设备
+        Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+        if (pairedDevices == null || pairedDevices.isEmpty()) {
+            return devices;
+        }
 
-            // 获取蓝牙设备
-            Object[] audioDevices = (Object[]) audioManager
-                .getClass()
-                .getMethod("getDevices", int.class)
-                .invoke(audioManager, AudioManager.GET_DEVICES_OUTPUTS);
+        // 获取已连接的设备
+        List<BluetoothDevice> connectedDevices = new ArrayList<>();
+        for (BluetoothDevice device : pairedDevices) {
+            try {
+                // 使用反射获取设备连接状态
+                Method isConnectedMethod = device.getClass().getMethod("isConnected");
+                boolean isConnected = (boolean) isConnectedMethod.invoke(device);
 
-            if (audioDevices != null) {
-                for (Object device : audioDevices) {
-                    Class<?> deviceClass = device.getClass();
-                    int type = (int) deviceClass.getMethod("getType").invoke(device);
-
-                    if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
-                        String address = (String) deviceClass.getMethod("getAddress").invoke(device);
-                        if (address != null && !address.equals("00:00:00:00:00:00") && !address.isEmpty()) {
-                            JSObject bluetooth = new JSObject();
-                            bluetooth.put("name", deviceClass.getMethod("getProductName").invoke(device));
-                            bluetooth.put("type", "bluetooth_a2dp");
-                            bluetooth.put("uid", address);
-                            bluetooth.put("category", "bluetooth");
-                            devices.put(bluetooth);
+                if (isConnected) {
+                    // 检查设备类型
+                    int deviceType = device.getType();
+                    // 只添加 A2DP 或 SCO 设备
+                    if (deviceType == BluetoothDevice.DEVICE_TYPE_CLASSIC || deviceType == BluetoothDevice.DEVICE_TYPE_DUAL) {
+                        // 检查设备是否支持音频输出
+                        Method getUuidsMethod = device.getClass().getMethod("getUuids");
+                        ParcelUuid[] uuids = (ParcelUuid[]) getUuidsMethod.invoke(device);
+                        if (uuids != null) {
+                            for (ParcelUuid uuid : uuids) {
+                                // A2DP_SINK UUID: 0000110B-0000-1000-8000-00805F9B34FB
+                                // HEADSET UUID: 0000110E-0000-1000-8000-00805F9B34FB
+                                String uuidString = uuid.toString().toUpperCase();
+                                if (uuidString.startsWith("0000110B") || uuidString.startsWith("0000110E")) {
+                                    connectedDevices.add(device);
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Error checking device connection status: " + e.getMessage());
             }
+        }
 
-            // 如果没有检测到设备，返回默认接收器
-            if (devices.length() == 0) {
-                JSObject receiver = new JSObject();
-                receiver.put("name", "Phone");
-                receiver.put("type", "builtin_receiver");
-                receiver.put("uid", "receiver_default");
-                receiver.put("category", "receiver");
-                devices.put(receiver);
+        // 将已连接的设备信息添加到返回列表中
+        for (BluetoothDevice device : connectedDevices) {
+            try {
+                JSObject obj = new JSObject();
+                String deviceName = device.getName();
+                if (deviceName == null || deviceName.isEmpty()) {
+                    deviceName = "Unknown Device";
+                }
+                obj.put("name", deviceName);
+                obj.put("type", "bluetooth_a2dp");
+                obj.put("uid", device.getAddress());
+                obj.put("category", "bluetooth");
+                devices.put(obj);
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Error adding device to list: " + e.getMessage());
             }
-        } catch (Exception e) {
-            Log.e("TextToSpeech", "Error getting audio devices: " + e.getMessage());
+        }
+
+        // 如果没有检测到设备，返回空列表
+        if (devices.length() == 0) {
+            Log.d(LOG_TAG, "No connected audio devices found");
         }
 
         return devices;
