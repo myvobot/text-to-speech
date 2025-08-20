@@ -256,12 +256,10 @@ The <a href="#speechsynthesisvoice">SpeechSynthesisVoice</a> interface represent
 
 #### ConnectedDevice
 
-| Prop           | Type                |
-| -------------- | ------------------- |
-| **`name`**     | <code>string</code> |
-| **`category`** | <code>string</code> |
-| **`type`**     | <code>string</code> |
-| **`uid`**      | <code>string</code> |
+| Prop       | Type                |
+| ---------- | ------------------- |
+| **`name`** | <code>string</code> |
+| **`uid`**  | <code>string</code> |
 
 
 ### Enums

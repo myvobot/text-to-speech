@@ -459,19 +459,26 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
                 if (isConnected) {
                     // 检查设备类型
                     int deviceType = device.getType();
-                    // 只添加 A2DP 或 SCO 设备
+                    // 只添加经典蓝牙或双模设备
                     if (deviceType == BluetoothDevice.DEVICE_TYPE_CLASSIC || deviceType == BluetoothDevice.DEVICE_TYPE_DUAL) {
-                        // 检查设备是否支持音频输出
-                        Method getUuidsMethod = device.getClass().getMethod("getUuids");
-                        ParcelUuid[] uuids = (ParcelUuid[]) getUuidsMethod.invoke(device);
-                        if (uuids != null) {
-                            for (ParcelUuid uuid : uuids) {
-                                // A2DP_SINK UUID: 0000110B-0000-1000-8000-00805F9B34FB
-                                // HEADSET UUID: 0000110E-0000-1000-8000-00805F9B34FB
-                                String uuidString = uuid.toString().toUpperCase();
-                                if (uuidString.startsWith("0000110B") || uuidString.startsWith("0000110E")) {
-                                    connectedDevices.add(device);
-                                    break;
+                        // 使用蓝牙设备类进行标准过滤
+                        int deviceClass = device.getBluetoothClass().getMajorDeviceClass();
+                        
+                        // 只接受音频设备类
+                        // BluetoothClass.Device.Major.AUDIO_VIDEO = 0x400
+                        if (deviceClass == 0x400) {
+                            // 进一步检查设备是否支持音频输出
+                            Method getUuidsMethod = device.getClass().getMethod("getUuids");
+                            ParcelUuid[] uuids = (ParcelUuid[]) getUuidsMethod.invoke(device);
+                            if (uuids != null) {
+                                for (ParcelUuid uuid : uuids) {
+                                    // A2DP_SINK UUID: 0000110B-0000-1000-8000-00805F9B34FB
+                                    // HEADSET UUID: 0000110E-0000-1000-8000-00805F9B34FB
+                                    String uuidString = uuid.toString().toUpperCase();
+                                    if (uuidString.startsWith("0000110B") || uuidString.startsWith("0000110E")) {
+                                        connectedDevices.add(device);
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -486,14 +493,12 @@ public class TextToSpeech implements android.speech.tts.TextToSpeech.OnInitListe
         for (BluetoothDevice device : connectedDevices) {
             try {
                 JSObject obj = new JSObject();
-                String deviceName = device.getName();
-                if (deviceName == null || deviceName.isEmpty()) {
-                    deviceName = "Unknown Device";
+                String aliasName = device.getAlias();
+                if (aliasName == null || aliasName.isEmpty()) {
+                    aliasName = device.getName() == null ? "Unknown Device" : device.getName();
                 }
-                obj.put("name", deviceName);
-                obj.put("type", "bluetooth_a2dp");
+                obj.put("name", aliasName);
                 obj.put("uid", device.getAddress());
-                obj.put("category", "bluetooth");
                 devices.put(obj);
             } catch (Exception e) {
                 Log.e(LOG_TAG, "Error adding device to list: " + e.getMessage());

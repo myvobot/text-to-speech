@@ -366,20 +366,6 @@
           "type": "string"
         },
         {
-          "name": "category",
-          "tags": [],
-          "docs": "",
-          "complexTypes": [],
-          "type": "string"
-        },
-        {
-          "name": "type",
-          "tags": [],
-          "docs": "",
-          "complexTypes": [],
-          "type": "string"
-        },
-        {
           "name": "uid",
           "tags": [],
           "docs": "",

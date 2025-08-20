@@ -160,7 +160,5 @@ export interface SpeechSynthesisVoice {
 }
 export interface ConnectedDevice {
     name: string;
-    category: string;
-    type: string;
     uid: string;
 }

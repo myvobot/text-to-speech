@@ -237,11 +237,10 @@ private func playAudioFile(_ fileURL: URL, audioChannel: Int) {
             // 检查当前输出中的蓝牙设备
             for output in currentOutputs {
                 if [.bluetoothA2DP, .bluetoothHFP].contains(output.portType) {
+                    let uid = extractMacAddress(output.uid)
                     devices.append([
                         "name": output.portName,
-                        "type": "bluetooth_a2dp",
-                        "category": "bluetooth",
-                        "uid": output.uid.isEmpty ? "bluetooth_default" : output.uid
+                        "uid": uid
                     ])
                 }
             }
@@ -251,13 +250,11 @@ private func playAudioFile(_ fileURL: URL, audioChannel: Int) {
                 for input in availableInputs {
                     // 检查是否为蓝牙输入设备
                     if [.bluetoothHFP].contains(input.portType) {
+                        let uid = extractMacAddress(input.uid)
                         // 如果已经添加了相同UID的设备，就跳过
-                        let uid = input.uid.isEmpty ? "bluetooth_default" : input.uid
                         if !devices.contains(where: { ($0["uid"] as? String) == uid }) {
                             devices.append([
                                 "name": input.portName,
-                                "type": "bluetooth_a2dp", // 保持一致性
-                                "category": "bluetooth",
                                 "uid": uid
                             ])
                         }
@@ -270,5 +267,19 @@ private func playAudioFile(_ fileURL: URL, audioChannel: Int) {
         }
         
         return devices
+    }
+    
+    // 从iOS设备UID中提取MAC地址
+    private func extractMacAddress(_ uid: String) -> String {
+        if uid.isEmpty {
+            return "bluetooth_default"
+        }
+        
+        // 取第一个"-"之前的部分
+        if let range = uid.range(of: "-") {
+            return String(uid[..<range.lowerBound])
+        }
+        
+        return uid
     }
 }
